@@ -36,6 +36,17 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    exe.addCSourceFile(.{
+        .file = .{ .path = "include/raygui.c" },
+        .flags = &.{},
+    });
+
+    exe.addIncludePath(.{
+        .path = "include/",
+    });
+
+    exe.linkLibC();
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
@@ -97,6 +108,7 @@ pub fn build(b: *std.Build) void {
     const raylib_math = raylib_dep.module("raylib-math"); // raymath module
     const rlgl = raylib_dep.module("rlgl"); // rlgl module
     const raylib_artifact = raylib_dep.artifact("raylib"); // raylib C library
+
     exe.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("raylib-math", raylib_math);

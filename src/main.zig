@@ -1,5 +1,7 @@
 const rl = @import("raylib");
 const rmath = @import("raylib-math");
+const rgui = @cImport(@cInclude("raygui.h"));
+const rl_c = @cImport(@cInclude("raylib.h"));
 const std = @import("std");
 
 const Bullet = struct {
@@ -51,6 +53,8 @@ pub fn main() anyerror!void {
         //----------------------------------------------------------------------------------
         // TODO: Update your variables here
         //----------------------------------------------------------------------------------
+        const width = @as(f32, @floatFromInt(texture.width));
+        const height = @as(f32, @floatFromInt(texture.height));
         var walk_direction = rl.Vector2.init(0, 0);
         if (rl.isKeyDown(rl.KeyboardKey.key_up)) {
             counter += 1;
@@ -75,6 +79,18 @@ pub fn main() anyerror!void {
             player_pos.y += walk_direction.y;
         }
 
+        if (player_pos.x < 0) {
+            player_pos.x = 0;
+        } else if (player_pos.x > 800 - width * 0.1) {
+            player_pos.x = 800 - width * 0.1;
+        }
+
+        if (player_pos.y < 0) {
+            player_pos.y = 0;
+        } else if (player_pos.y > 450 - height * 0.1) {
+            player_pos.y = 450 - height * 0.1;
+        }
+
         if (rl.isKeyPressed(rl.KeyboardKey.key_space)) {
             const bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture);
             try bullets.append(bullet);
@@ -87,18 +103,12 @@ pub fn main() anyerror!void {
         //----------------------------------------------------------------------------------
         rl.beginDrawing();
         defer rl.endDrawing();
-        rl.clearBackground(rl.Color.white);
+        rl.clearBackground(rl.Color.light_gray);
         //rl.drawRectangleRec(player, rl.Color.red);
-        const width = @as(f32, @floatFromInt(texture.width));
-        const height = @as(f32, @floatFromInt(texture.height));
+
         const source_rec = rl.Rectangle.init(0, 0, -width, height);
         const dest_rec = rl.Rectangle.init(player_pos.x, player_pos.y, width * 0.1, height * 0.1);
         rl.drawTexturePro(texture, source_rec, dest_rec, rl.Vector2.init(0, 0), 0, rl.Color.white);
-
-        rl.drawText(message, 190, 200, 20, rl.Color.light_gray);
-        const delta = try std.fmt.allocPrintZ(allocator, "Delta: {d}", .{rl.getFrameTime()});
-        defer allocator.free(delta);
-        rl.drawText(delta, 190, 350, 20, rl.Color.light_gray);
 
         for (0..bullets.items.len) |i| {
             bullets.items[i].update();
@@ -112,5 +122,8 @@ pub fn main() anyerror!void {
         }
         dead_bullets.clearAndFree();
         //----------------------------------------------------------------------------------
+        if (rgui.GuiButton(.{ .x = 24, .y = 24, .width = 120, .height = 30 }, "cuuuuu") == 1) {
+            std.debug.print("oiiii", .{});
+        }
     }
 }
