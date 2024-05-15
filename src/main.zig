@@ -6,25 +6,9 @@ const std = @import("std");
 
 const Type = enum { Bullet };
 
-const Updater = struct {
-    bullet: ?Bullet,
-    type: Type,
-    fn update(self: *Updater) bool {
-        if (self.type == Type.Bullet and self.bullet != null) {
-            return self.bullet.?.update();
-        }
-        return true;
-    }
+const Updater = union(enum) {
+    Bullet: Bullet,
 };
-
-// const Updater = struct {
-//     ptr: *anyopaque,
-//     updateFn: *const fn (ptr: *anyopaque) anyerror!bool,
-//
-//     fn update(self: Updater) !bool {
-//         return self.updateFn(self.ptr);
-//     }
-// };
 
 const Bullet = struct {
     pos: rl.Vector2,
@@ -35,7 +19,7 @@ const Bullet = struct {
     }
 
     fn update(self: *Bullet) bool {
-        self.pos.x += 1000 * rl.getFrameTime();
+        self.*.pos.x += 1000 * rl.getFrameTime();
 
         rl.drawTextureEx(self.texture, self.pos, 0, 0.2, rl.Color.white);
         if (self.*.pos.x > 800) {
@@ -45,24 +29,6 @@ const Bullet = struct {
 
         return false;
     }
-
-    // fn update(ptr: *anyopaque) !bool {
-    //     const self: *Bullet = @ptrCast(@alignCast(ptr));
-    //     self.*.pos.x += 1000 * rl.getFrameTime();
-    //
-    //     rl.drawTextureEx(self.texture, self.pos, 0, 0.2, rl.Color.white);
-    //     if (self.*.pos.x > 800) {
-    //         self.*.dead = true;
-    //         return true;
-    //     }
-    //
-    //     return false;
-    // }
-    //
-    // fn updater(self: *Bullet) Updater {
-    //     const updater_struct = Updater{ .ptr = self, .updateFn = update };
-    //     return updater_struct;
-    // }
 };
 
 pub fn main() anyerror!void {
@@ -85,10 +51,10 @@ pub fn main() anyerror!void {
     const texture = rl.loadTexture("fenegun.png");
     var player_pos = rl.Vector2.init(30, 280);
     const bullet_spawn = rl.Vector2.init(50, 72);
-    var updaters = std.ArrayList(Updater).init(allocator);
-    defer updaters.deinit();
     var dead_updaters = std.ArrayList(usize).init(allocator);
     defer dead_updaters.deinit();
+    var updaters = std.ArrayList(Updater).init(allocator);
+    defer updaters.deinit();
 
     const bullet_texture = rl.loadTexture("tangerina.png");
     const attack_speed: f32 = 5;
@@ -139,9 +105,8 @@ pub fn main() anyerror!void {
         attack_cooldown += rl.getFrameTime();
 
         if (rl.isKeyDown(rl.KeyboardKey.key_space) and attack_cooldown >= 1.0 / attack_speed) {
-            //var bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture);
-            const updater = Updater{ .bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture), .type = Type.Bullet };
-            try updaters.append(updater);
+            const bullet = Updater{ .Bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture) };
+            try updaters.append(bullet);
             attack_cooldown = 0.0;
         }
 
@@ -160,12 +125,15 @@ pub fn main() anyerror!void {
         rl.drawTexturePro(texture, source_rec, dest_rec, rl.Vector2.init(0, 0), 0, rl.Color.white);
 
         for (0..updaters.items.len) |i| {
-            if (updaters.items[i].update()) {
-                std.debug.print("\n morto", .{});
+            const item = &updaters.items[i];
+            const dead = switch (item.*) {
+                inline else => |*updater| updater.update(),
+            };
+            if (dead) {
                 try dead_updaters.append(i);
             }
         }
-
+        //
         for (dead_updaters.items) |index| {
             _ = updaters.orderedRemove(index);
         }
