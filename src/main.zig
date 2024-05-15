@@ -4,22 +4,65 @@ const rgui = @cImport(@cInclude("raygui.h"));
 const rl_c = @cImport(@cInclude("raylib.h"));
 const std = @import("std");
 
+const Type = enum { Bullet };
+
+const Updater = struct {
+    bullet: ?Bullet,
+    type: Type,
+    fn update(self: *Updater) bool {
+        if (self.type == Type.Bullet and self.bullet != null) {
+            return self.bullet.?.update();
+        }
+        return true;
+    }
+};
+
+// const Updater = struct {
+//     ptr: *anyopaque,
+//     updateFn: *const fn (ptr: *anyopaque) anyerror!bool,
+//
+//     fn update(self: Updater) !bool {
+//         return self.updateFn(self.ptr);
+//     }
+// };
+
 const Bullet = struct {
     pos: rl.Vector2,
     texture: rl.Texture2D,
     dead: bool,
-    pub fn init(position: rl.Vector2, texture: rl.Texture2D) Bullet {
+    fn init(position: rl.Vector2, texture: rl.Texture2D) Bullet {
         return Bullet{ .pos = rmath.vector2Subtract(position, rl.Vector2.init(0, @as(f32, @floatFromInt(texture.height)) / 2.0 * 0.2)), .texture = texture, .dead = false };
     }
 
-    pub fn update(self: *Bullet) void {
-        self.*.pos.x += 1000 * rl.getFrameTime();
+    fn update(self: *Bullet) bool {
+        self.pos.x += 1000 * rl.getFrameTime();
 
         rl.drawTextureEx(self.texture, self.pos, 0, 0.2, rl.Color.white);
-        if (self.pos.x > 800) {
+        if (self.*.pos.x > 800) {
             self.*.dead = true;
+            return true;
         }
+
+        return false;
     }
+
+    // fn update(ptr: *anyopaque) !bool {
+    //     const self: *Bullet = @ptrCast(@alignCast(ptr));
+    //     self.*.pos.x += 1000 * rl.getFrameTime();
+    //
+    //     rl.drawTextureEx(self.texture, self.pos, 0, 0.2, rl.Color.white);
+    //     if (self.*.pos.x > 800) {
+    //         self.*.dead = true;
+    //         return true;
+    //     }
+    //
+    //     return false;
+    // }
+    //
+    // fn updater(self: *Bullet) Updater {
+    //     const updater_struct = Updater{ .ptr = self, .updateFn = update };
+    //     return updater_struct;
+    // }
 };
 
 pub fn main() anyerror!void {
@@ -42,11 +85,14 @@ pub fn main() anyerror!void {
     const texture = rl.loadTexture("fenegun.png");
     var player_pos = rl.Vector2.init(30, 280);
     const bullet_spawn = rl.Vector2.init(50, 72);
-    var bullets = std.ArrayList(Bullet).init(allocator);
-    defer bullets.deinit();
-    var dead_bullets = std.ArrayList(usize).init(allocator);
-    defer dead_bullets.deinit();
+    var updaters = std.ArrayList(Updater).init(allocator);
+    defer updaters.deinit();
+    var dead_updaters = std.ArrayList(usize).init(allocator);
+    defer dead_updaters.deinit();
+
     const bullet_texture = rl.loadTexture("tangerina.png");
+    const attack_speed: f32 = 5;
+    var attack_cooldown: f32 = 0;
     // Main game loop
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         // Update
@@ -56,17 +102,17 @@ pub fn main() anyerror!void {
         const width = @as(f32, @floatFromInt(texture.width));
         const height = @as(f32, @floatFromInt(texture.height));
         var walk_direction = rl.Vector2.init(0, 0);
-        if (rl.isKeyDown(rl.KeyboardKey.key_up)) {
+        if (rl.isKeyDown(rl.KeyboardKey.key_up) or rl.isKeyDown(rl.KeyboardKey.key_w)) {
             counter += 1;
             walk_direction.y = -1;
-        } else if (rl.isKeyDown(rl.KeyboardKey.key_down)) {
+        } else if (rl.isKeyDown(rl.KeyboardKey.key_down) or rl.isKeyDown(rl.KeyboardKey.key_s)) {
             counter -= 1;
             walk_direction.y = 1;
         }
-        if (rl.isKeyDown(rl.KeyboardKey.key_right)) {
+        if (rl.isKeyDown(rl.KeyboardKey.key_right) or rl.isKeyDown(rl.KeyboardKey.key_d)) {
             counter += 1;
             walk_direction.x = 1;
-        } else if (rl.isKeyDown(rl.KeyboardKey.key_left)) {
+        } else if (rl.isKeyDown(rl.KeyboardKey.key_left) or rl.isKeyDown(rl.KeyboardKey.key_a)) {
             counter -= 1;
             walk_direction.x = -1;
         }
@@ -90,10 +136,13 @@ pub fn main() anyerror!void {
         } else if (player_pos.y > 450 - height * 0.1) {
             player_pos.y = 450 - height * 0.1;
         }
+        attack_cooldown += rl.getFrameTime();
 
-        if (rl.isKeyPressed(rl.KeyboardKey.key_space)) {
-            const bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture);
-            try bullets.append(bullet);
+        if (rl.isKeyDown(rl.KeyboardKey.key_space) and attack_cooldown >= 1.0 / attack_speed) {
+            //var bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture);
+            const updater = Updater{ .bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture), .type = Type.Bullet };
+            try updaters.append(updater);
+            attack_cooldown = 0.0;
         }
 
         const message = try std.fmt.allocPrintZ(allocator, "Counter: {d}", .{counter});
@@ -110,20 +159,20 @@ pub fn main() anyerror!void {
         const dest_rec = rl.Rectangle.init(player_pos.x, player_pos.y, width * 0.1, height * 0.1);
         rl.drawTexturePro(texture, source_rec, dest_rec, rl.Vector2.init(0, 0), 0, rl.Color.white);
 
-        for (0..bullets.items.len) |i| {
-            bullets.items[i].update();
-            if (bullets.items[i].dead == true) {
-                try dead_bullets.append(i);
+        for (0..updaters.items.len) |i| {
+            if (updaters.items[i].update()) {
+                std.debug.print("\n morto", .{});
+                try dead_updaters.append(i);
             }
         }
 
-        for (dead_bullets.items) |index| {
-            _ = bullets.orderedRemove(index);
+        for (dead_updaters.items) |index| {
+            _ = updaters.orderedRemove(index);
         }
-        dead_bullets.clearAndFree();
+        dead_updaters.clearAndFree();
         //----------------------------------------------------------------------------------
-        if (rgui.GuiButton(.{ .x = 24, .y = 24, .width = 120, .height = 30 }, "cuuuuu") == 1) {
-            std.debug.print("oiiii", .{});
-        }
+        // if (rgui.GuiButton(.{ .x = 24, .y = 24, .width = 120, .height = 30 }, "cuuuuu") == 1) {
+        //     std.debug.print("oiiii", .{});
+        // }
     }
 }
