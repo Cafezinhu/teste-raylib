@@ -4,7 +4,7 @@ const rmath = @import("raylib-math");
 //const rl_c = @cImport(@cInclude("raylib.h"));
 const std = @import("std");
 
-const allocator = std.heap.page_allocator;
+const allocator = std.heap.c_allocator;
 
 const Team = enum { Player, Enemy };
 
@@ -20,37 +20,6 @@ const Entity = union(enum) {
         switch (self.*) {
             inline else => |*entity| entity.onCollideWith(other),
         }
-    }
-};
-
-const EntityArray = struct {
-    ptr: [*]Entity,
-    len: usize,
-    fn init() EntityArray {
-        return EntityArray{ .ptr = undefined, .len = 0 };
-    }
-
-    fn append(self: *EntityArray, entity: Entity) void {
-        self.*.ptr[self.len] = entity;
-        self.*.len += 1;
-    }
-
-    fn remove_at(self: *EntityArray, pos: usize) void {
-        for (pos..self.len) |i| {
-            if (i == self.len - 1) {
-                allocator.destroy(&self.*.ptr[i]);
-                break;
-            }
-            self.*.ptr[i] = self.*.ptr[i + 1];
-        }
-        self.*.len -= 1;
-        if (self.len < 0) {
-            self.*.len = 0;
-        }
-    }
-
-    fn get(self: *EntityArray, pos: usize) *Entity {
-        return &self.ptr[pos];
     }
 };
 
@@ -168,7 +137,7 @@ const Bullet = struct {
 
 pub fn main() anyerror!void {
     // Initialization
-    //const allocator = std.heap.page_allocator;
+
     //--------------------------------------------------------------------------------------
     const screenWidth = 800;
     const screenHeight = 450;
@@ -181,10 +150,9 @@ pub fn main() anyerror!void {
     //--------------------------------------------------------------------------------------
     //entitidades do jogo
 
-    // var entities = std.ArrayList(Entity).init(allocator);
-    // entities.capacity = 1024;
-    // defer entities.deinit();
-    var entidades = EntityArray.init();
+    var entities = std.ArrayList(Entity).init(allocator);
+
+    defer entities.deinit();
 
     const bullet_texture = rl.loadTexture("resources/tangerina.png");
     const winton = rl.loadTexture("resources/winton.png");
@@ -242,8 +210,7 @@ pub fn main() anyerror!void {
         if (rl.isKeyDown(rl.KeyboardKey.key_space) and attack_cooldown >= 1.0 / attack_speed) {
             const bullet_entity = Entity{ .Bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture, Team.Player) };
 
-            entidades.append(bullet_entity);
-            //try entities.append(bullet_entity);
+            try entities.append(bullet_entity);
             attack_cooldown = 0.0;
         }
         //
@@ -251,8 +218,7 @@ pub fn main() anyerror!void {
 
         if (enemySpawnCooldown >= 1.0 / enemySpawnSpeed) {
             const enemy_entity = Entity{ .Enemy = Enemy{ .BasicEnemy = BasicEnemy.init(rl.Vector2{ .x = 800, .y = @as(f32, @floatFromInt(rl.getRandomValue(60, 390))) }, winton) } };
-            //try entities.append(enemy_entity);
-            entidades.append(enemy_entity);
+            try entities.append(enemy_entity);
             enemySpawnCooldown = 0.0;
         }
 
@@ -267,41 +233,15 @@ pub fn main() anyerror!void {
         const source_rec = rl.Rectangle.init(0, 0, -width, height);
         const dest_rec = rl.Rectangle.init(player_pos.x, player_pos.y, width * 0.1, height * 0.1);
         rl.drawTexturePro(texture, source_rec, dest_rec, rl.Vector2.init(0, 0), 0, rl.Color.white);
-        //var index: usize = 0;
-        // while (index < entities.items.len) {
-        //     const entity = &entities.items[index];
-        //     switch (entity.*) {
-        //         inline else => |*one_entity| {
-        //             one_entity.update();
-        //             const circle_collider: CircleCollider = one_entity.getCircleCollider();
-        //             for (index + 1..entities.items.len) |j| {
-        //                 const other = &entities.items[j];
-        //                 switch (other.*) {
-        //                     inline else => |*other_entity| {
-        //                         const other_circle_collider: CircleCollider = other_entity.getCircleCollider();
-        //                         const distance = rmath.vector2Distance(circle_collider.pos, other_circle_collider.pos);
-        //
-        //                         if (distance <= circle_collider.radius + other_circle_collider.radius) {
-        //                             //std.debug.print("\nColidiu aui {d}", .{distance});
-        //                             entity.onCollideWith(other);
-        //                             other.onCollideWith(entity);
-        //                         }
-        //                     },
-        //                 }
-        //             }
-        //         },
-        //     }
-        //     index += 1;
-        // }
         var index: usize = 0;
-        while (index < entidades.len) {
-            const entity = entidades.get(index);
+        while (index < entities.items.len) {
+            const entity = &entities.items[index];
             switch (entity.*) {
                 inline else => |*one_entity| {
                     one_entity.update();
                     const circle_collider: CircleCollider = one_entity.getCircleCollider();
-                    for (index + 1..entidades.len) |j| {
-                        const other = entidades.get(j);
+                    for (index + 1..entities.items.len) |j| {
+                        const other = &entities.items[j];
                         switch (other.*) {
                             inline else => |*other_entity| {
                                 const other_circle_collider: CircleCollider = other_entity.getCircleCollider();
@@ -319,24 +259,13 @@ pub fn main() anyerror!void {
             }
             index += 1;
         }
-        //
-        // if (entities.items.len > 0) {
-        //     var index2 = @as(i32, @intCast(entities.items.len)) - 1;
-        //     while (index2 >= 0) {
-        //         const i = @as(usize, @intCast(index2));
-        //         if (entities.items[i].isDead()) {
-        //             _ = entities.swapRemove(i);
-        //         }
-        //
-        //         index2 -= 1;
-        //     }
-        // }
-        if (entidades.len > 0) {
-            var index2 = @as(i32, @intCast(entidades.len)) - 1;
+
+        if (entities.items.len > 0) {
+            var index2 = @as(i32, @intCast(entities.items.len)) - 1;
             while (index2 >= 0) {
                 const i = @as(usize, @intCast(index2));
-                if (entidades.get(i).isDead()) {
-                    entidades.remove_at(i);
+                if (entities.items[i].isDead()) {
+                    _ = entities.swapRemove(i);
                 }
 
                 index2 -= 1;
