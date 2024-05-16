@@ -185,8 +185,23 @@ pub fn main() anyerror!void {
         } else if (rl.isKeyDown(rl.KeyboardKey.key_left) or rl.isKeyDown(rl.KeyboardKey.key_a)) {
             walk_direction.x = -1;
         }
+
+        //Gamepad
+        if (rl.isGamepadAvailable(0)) {
+            const x = rl.getGamepadAxisMovement(0, @intFromEnum(rl.GamepadAxis.gamepad_axis_left_x));
+            const y = rl.getGamepadAxisMovement(0, @intFromEnum(rl.GamepadAxis.gamepad_axis_left_y));
+            if (x != 0.0) {
+                walk_direction.x = x;
+            }
+            if (y != 0.0) {
+                walk_direction.y = y;
+            }
+        }
+
         if (rmath.vector2Length(walk_direction) != 0) {
-            walk_direction = rmath.vector2Normalize(walk_direction);
+            if (rmath.vector2Length(walk_direction) > 1.0) {
+                walk_direction = rmath.vector2Normalize(walk_direction);
+            }
             const speed = rl.getFrameTime() * player_speed;
             const speed_vector = rl.Vector2.init(speed, speed);
             walk_direction = rmath.vector2Multiply(walk_direction, speed_vector);
@@ -206,8 +221,14 @@ pub fn main() anyerror!void {
             player_pos.y = 450 - height * 0.1;
         }
         attack_cooldown += rl.getFrameTime();
+        var shoot = rl.isKeyDown(rl.KeyboardKey.key_space);
+        if (rl.isGamepadAvailable(0)) {
+            if (rl.isGamepadButtonDown(0, rl.GamepadButton.gamepad_button_right_face_right)) {
+                shoot = true;
+            }
+        }
         //
-        if (rl.isKeyDown(rl.KeyboardKey.key_space) and attack_cooldown >= 1.0 / attack_speed) {
+        if (shoot and attack_cooldown >= 1.0 / attack_speed) {
             const bullet_entity = Entity{ .Bullet = Bullet.init(rmath.vector2Add(player_pos, bullet_spawn), bullet_texture, Team.Player) };
 
             try entities.append(bullet_entity);
