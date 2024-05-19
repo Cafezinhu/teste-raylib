@@ -137,13 +137,15 @@ const Bullet = struct {
 
 pub fn main() anyerror!void {
     // Initialization
-
+    const emscripten = @import("build_options").emscripten;
     //--------------------------------------------------------------------------------------
     const screenWidth = 800;
     const screenHeight = 450;
 
     rl.initWindow(screenWidth, screenHeight, "Fenko pew pew");
     defer rl.closeWindow(); // Close window and OpenGL context
+    //
+    rl.initAudioDevice();
 
     rl.setTargetFPS(60); // Set our game to run at 60 frames-per-second
     rl.setExitKey(rl.KeyboardKey.key_null);
@@ -167,10 +169,27 @@ pub fn main() anyerror!void {
     const enemySpawnSpeed: f32 = 2;
     var enemySpawnCooldown: f32 = 0;
 
+    const model = rl.loadModel("resources/pato.obj");
+    const texture2 = rl.loadTexture("resources/textures/rubber_duck_toy_diff_1k.png");
+    model.materials[0].maps[@intFromEnum(rl.MATERIAL_MAP_DIFFUSE)].texture = texture2;
+
+    const quack = rl.loadSound("resources/pato.wav");
+
+    var camera = rl.Camera{ .position = rl.Vector3.init(1, 1, 1), .target = rl.Vector3.init(0.0, 0.0, 0.0), .up = rl.Vector3.init(0, 1, 0), .fovy = 45, .projection = rl.CameraProjection.camera_perspective };
+
     // Main game loop
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         // Update
         //----------------------------------------------------------------------------------
+        //
+        if (rl.isKeyPressed(rl.KeyboardKey.key_enter) or rl.isGamepadButtonPressed(0, rl.GamepadButton.gamepad_button_right_trigger_1)) {
+            if (emscripten) {
+                std.os.emscripten.emscripten_run_script("alert('salve')");
+            }
+            if (rl.isAudioDeviceReady() and rl.isSoundReady(quack)) {
+                rl.playSound(quack);
+            }
+        }
 
         const width = @as(f32, @floatFromInt(texture.width));
         const height = @as(f32, @floatFromInt(texture.height));
@@ -249,6 +268,13 @@ pub fn main() anyerror!void {
         rl.beginDrawing();
         defer rl.endDrawing();
         rl.clearBackground(rl.Color.light_gray);
+
+        //------------------------------3D
+        rl.updateCamera(&camera, rl.CameraMode.camera_orbital);
+        rl.beginMode3D(camera);
+        rl.drawModel(model, rl.Vector3.init(0, 0, 0), 1, rl.Color.white);
+        rl.endMode3D();
+        //------------------------------Update
         //rl.drawRectangleRec(player, rl.Color.red);
 
         const source_rec = rl.Rectangle.init(0, 0, -width, height);

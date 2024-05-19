@@ -141,6 +141,7 @@ const rlz = @import("raylib-zig");
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const build_options = b.addOptions();
 
     const raylib_dep = b.dependency("raylib-zig", .{
         .target = target,
@@ -153,7 +154,9 @@ pub fn build(b: *std.Build) !void {
 
     //web exports are completely separate
     if (target.query.os_tag == .emscripten) {
+        build_options.addOption(bool, "emscripten", true);
         const exe_lib = rlz.emcc.compileForEmscripten(b, "Fenko pew pew", "src/main.zig", target, optimize);
+        exe_lib.root_module.addOptions("build_options", build_options);
 
         exe_lib.linkLibrary(raylib_artifact);
         exe_lib.root_module.addImport("raylib", raylib);
@@ -169,9 +172,9 @@ pub fn build(b: *std.Build) !void {
         run_option.dependOn(&run_step.step);
         return;
     }
-
+    build_options.addOption(bool, "emscripten", false);
     const exe = b.addExecutable(.{ .name = "Fenko pew pew", .root_source_file = .{ .path = "src/main.zig" }, .optimize = optimize, .target = target });
-
+    exe.root_module.addOptions("build_options", build_options);
     exe.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("raylib-math", raylib_math);

@@ -1,0 +1,14 @@
+# Blender 3.6.2 MTL File: 'rubber_duck_toy_1k.blend'
+# www.blender.org
+
+newmtl rubber_duck_toy
+Ka 1.000000 1.000000 1.000000
+Ks 0.666600 0.666600 0.666600
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd C:/Users/cafezinho/Downloads/rubber_duck_toy_1k.blend/textures/rubber_duck_toy_diff_1k.jpg
+map_Ns C:/Users/cafezinho/Downloads/rubber_duck_toy_1k.blend/textures/rubber_duck_toy_rough_1k.exr
+map_refl C:/Users/cafezinho/Downloads/rubber_duck_toy_1k.blend/textures/rubber_duck_toy_metal_1k.exr
+map_Bump -bm 1.000000 C:/Users/cafezinho/Downloads/rubber_duck_toy_1k.blend/textures/rubber_duck_toy_nor_gl_1k.exr
